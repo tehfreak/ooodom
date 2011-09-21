@@ -124,6 +124,7 @@ class OpenDocument_Package
     {
         if (null === $this->_content) {
             $this->_content = new OpenDocument_Content();
+            $this->_content->setPackage($this);
         }
         return $this->_content;
     }
