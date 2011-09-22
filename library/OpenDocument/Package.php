@@ -65,21 +65,40 @@ class OpenDocument_Package
     }
 
 
+    public function load($path)
+    {
+        $this->_path = realpath($path);
+
+        $this->_zip = new ZipArchive();
+        if (true !== $result = $this->_zip->open($this->_path)) {
+            throw new Exception('Cannot open zip, error '. $result);
+        }
+
+        $this->_manifest = null;
+        if ($manifest = $this->_zip->getFromName('META-INF/manifest.xml')) {
+            $this->setManifest(
+                $this->getManifest()->loadXML($manifest);
+            );
+        }
+
+        $this->_content = null;
+        if ($content = $this->_zip->getFromName('content.xml')) {
+            $this->setContent(
+                $this->getContent()->loadXML($content);
+            );
+        }
+    }
+
+
     /**
      * Set <manifest:manifest> object model
      *
-     * @param  DOMDocument $manifest
+     * @param  OpenDocument_Package_Manifest $manifest
      * @return OpenDocument_Package
      */
-    public function setManifest(DOMDocument $manifest)
+    public function setManifest(OpenDocument_Package_Manifest $manifest)
     {
-        if ($manifest instanceof OpenDocument_Package_Manifest) {
-            $this->_manifest = $manifest;
-        } else {
-            $this->getManifest()->loadXML(
-                $manifest->saveXML()
-            );
-        }
+        $this->_manifest = $manifest;
         return $this;
     }
 
@@ -100,18 +119,12 @@ class OpenDocument_Package
     /**
      * Set <office:document-content> object model
      *
-     * @param  DOMDocument $content
+     * @param  OpenDocument_Content $content
      * @return OpenDocument_Package
      */
-    public function setContent(DOMDocument $content)
+    public function setContent(OpenDocument_Content $content)
     {
-        if ($content instanceof OpenDocument_Content) {
-            $this->_content = $content;
-        } else {
-            $this->getContent()->loadXML(
-                $content->saveXML()
-            );
-        }
+        $this->_content = $content->setPackage($this);
         return $this;
     }
 
@@ -124,7 +137,6 @@ class OpenDocument_Package
     {
         if (null === $this->_content) {
             $this->_content = new OpenDocument_Content();
-            $this->_content->setPackage($this);
         }
         return $this->_content;
     }
