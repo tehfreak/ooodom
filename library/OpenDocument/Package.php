@@ -33,7 +33,7 @@ class OpenDocument_Package
     /**
      * @var string
      */
-    protected $_path;
+    protected $_zipPath = null;
 
     /**
      * @var ZipArchive
@@ -42,50 +42,75 @@ class OpenDocument_Package
 
 
     /**
-     * Create package
+     * Construct package
      *
      * @param  string $path
+     * @param  array $config
      */
     public function __construct($path = null, $config = null)
     {
-        if (null === $path) {
-            $this->_path = tempnam(sys_get_temp_dir(), 'ODF');
-        }
-        $this->_zip = new ZipArchive();
-        $this->_zip->open($this->_path, ZIPARCHIVE::CREATE | ZIPARCHIVE::OVERWRITE);
+        $this->_zipPath = $path;
     }
 
     /**
-     * Delete package
+     * Destruct package
      */
     public function __destruct()
     {
-        $this->_zip->close();
-        unlink($this->_path);
+        if ($this->_zip) {
+            $this->_zip->close();
+        }
+    }
+
+    /**
+     * Get opened zip archive
+     *
+     * @return ZipArchive
+     */
+    public function getZip()
+    {
+        if (null === $this->_zip) {
+            $zip = new ZipArchive();
+            if (null === $this->_zipPath) {
+                $this->_zipPath = tempnam(sys_get_temp_dir(), 'ODF');
+            }
+            if (!$result = $zip->open($this->_zipPath, ZIPARCHIVE::CREATE)) {
+                throw new Exception('Cannot open zip, error '. $result);
+            }
+            $this->_zip = $zip;
+        }
+        return $this->_zip;
     }
 
 
+    /**
+     * Load state from zip archive
+     *
+     * @return OpenDocument_Package
+     */
     public function load($path)
     {
-        $this->_path = realpath($path);
-
-        $this->_zip = new ZipArchive();
-        if (true !== $result = $this->_zip->open($this->_path)) {
-            throw new Exception('Cannot open zip, error '. $result);
-        }
+        $this->_zip = null;
+        $this->_zipPath = $path;
 
         $this->_manifest = null;
-        if ($manifest = $this->_zip->getFromName('META-INF/manifest.xml')) {
-            $this->setManifest(
-                $this->getManifest()->loadXML($manifest);
-            );
+        if ($manifest = $this->getZip()->getFromName('META-INF/manifest.xml')) {
+            $this->getManifest()->loadXML($manifest);
         }
 
         $this->_content = null;
-        if ($content = $this->_zip->getFromName('content.xml')) {
-            $this->setContent(
-                $this->getContent()->loadXML($content);
-            );
+        if ($content = $this->getZip()->getFromName('content.xml')) {
+            $this->getContent()->loadXML($content);
+        }
+
+        $this->_styles = null;
+        if ($styles = $this->getZip()->getFromName('styles.xml')) {
+            $this->getStyles()->loadXML($styles);
+        }
+
+        $this->_meta = null;
+        if ($meta = $this->getZip()->getFromName('meta.xml')) {
+            $this->getMeta()->loadXML($meta);
         }
     }
 
@@ -110,7 +135,8 @@ class OpenDocument_Package
     public function getManifest()
     {
         if (null === $this->_manifest) {
-            $this->_manifest = new OpenDocument_Package_Manifest();
+            require_once 'OpenDocument/Package/Manifest.php';
+            $this->setManifest(new OpenDocument_Package_Manifest());
         }
         return $this->_manifest;
     }
@@ -136,7 +162,8 @@ class OpenDocument_Package
     public function getContent()
     {
         if (null === $this->_content) {
-            $this->_content = new OpenDocument_Content();
+            require_once 'OpenDocument/Content.php';
+            $this->setContent(new OpenDocument_Content());
         }
         return $this->_content;
     }
@@ -145,18 +172,12 @@ class OpenDocument_Package
     /**
      * Set <office:document-styles> object model
      *
-     * @param  DOMDocument $styles
+     * @param  OpenDocument_Styles $styles
      * @return OpenDocument_Package
      */
-    public function setStyles(DOMDocument $styles)
+    public function setStyles(OpenDocument_Styles $styles)
     {
-        if ($styles instanceof OpenDocument_Styles) {
-            $this->_styles = $styles;
-        } else {
-            $this->getStyles()->loadXML(
-                $styles->saveXML()
-            );
-        }
+        $this->_styles = $styles->setPackage($this);
         return $this;
     }
 
@@ -168,7 +189,8 @@ class OpenDocument_Package
     public function getStyles()
     {
         if (null === $this->_styles) {
-            $this->_styles = new OpenDocument_Styles();
+            require_once 'OpenDocument/Styles.php';
+            $this->setStyles(new OpenDocument_Styles());
         }
         return $this->_styles;
     }
@@ -177,18 +199,12 @@ class OpenDocument_Package
     /**
      * Set <office:document-meta> object model
      *
-     * @param  DOMDocument $meta
+     * @param  OpenDocument_Meta $meta
      * @return OpenDocument_Package
      */
-    public function setMeta(DOMDocument $meta)
+    public function setMeta(OpenDocument_Meta $meta)
     {
-        if ($meta instanceof OpenDocument_Meta) {
-            $this->_meta = $meta;
-        } else {
-            $this->getMeta()->loadXML(
-                $meta->saveXML()
-            );
-        }
+        $this->_meta = $meta->setPackage($this);
         return $this;
     }
 
@@ -200,7 +216,8 @@ class OpenDocument_Package
     public function getMeta()
     {
         if (null === $this->_meta) {
-            $this->_meta = new OpenDocument_Meta();
+            require_once 'OpenDocument/Meta.php';
+            $this->setMeta(new OpenDocument_Meta());
         }
         return $this->_meta;
     }
@@ -238,7 +255,7 @@ class OpenDocument_Package
      */
     public function addFileFromString($path, $content, $mime = null)
     {
-        if ($result = $this->_zip->addFromString($path, $content)) {
+        if ($result = $this->getZip()->addFromString($path, $content)) {
             $this->getManifest()->addFile($path, $mime);
         }
         return $result;
