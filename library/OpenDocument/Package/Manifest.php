@@ -21,6 +21,7 @@ class OpenDocument_Package_Manifest extends DOMDocument
     public function __construct()
     {
         parent::__construct('1.0', 'UTF-8'); // new DOMDocument
+
         $root = $this->appendChild(
             $this->createElementNS(
                 'urn:oasis:names:tc:opendocument:xmlns:manifest:1.0',
@@ -29,8 +30,6 @@ class OpenDocument_Package_Manifest extends DOMDocument
         );
         $root->setAttribute('manifest:version', '1.2');
         $this->addFile('/', 'application/vnd.oasis.opendocument.text');
-
-        $this->_xpath = new DOMXPath($this);
     }
 
     /**
@@ -45,6 +44,22 @@ class OpenDocument_Package_Manifest extends DOMDocument
 
 
     /**
+     * Evaluate the XPath expression
+     *
+     * @param  string $query
+     * @param  DOMNode $context
+     * @return DOMNodeList|null
+     */
+    public function query($query, $context = null)
+    {
+        if (null === $this->_xpath) {
+            $this->_xpath = new DOMXPath($this);
+        }
+        return $this->_xpath->query($query, $context);
+    }
+
+
+    /**
      * Add <manifest:file-entry>
      *
      * @param  string $path
@@ -53,7 +68,7 @@ class OpenDocument_Package_Manifest extends DOMDocument
      */
     public function addFile($path, $mime = 'text/xml')
     {
-        if (null === $element = $this->_xpath->query("manifest:file-entry[@manifest:full-path='$path']")->item(0)) {
+        if (null === $element = $this->query("manifest:file-entry[@manifest:full-path='$path']")->item(0)) {
             $element = $this->documentElement->appendChild(
                 $this->createElement('manifest:file-entry')
             );

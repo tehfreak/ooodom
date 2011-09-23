@@ -12,7 +12,7 @@ class OpenDocument_Content extends DOMDocument
     /**
      * @var OpenDocument_Package
      */
-    protected $_package;
+    protected $_package = null;
 
 
     /**
@@ -42,7 +42,22 @@ class OpenDocument_Content extends DOMDocument
         $root->setAttribute('office:version', '1.2');
         
         $this->registerNodeClass('DOMElement', 'OpenDocument_Content_Element');
-        $this->_xpath = new DOMXPath($this);
+    }
+
+
+    /**
+     * Evaluate the XPath expression
+     *
+     * @param  string $query
+     * @param  DOMNode $context
+     * @return DOMNodeList|null
+     */
+    public function query($query, $context = null)
+    {
+        if (null === $this->_xpath) {
+            $this->_xpath = new DOMXPath($this);
+        }
+        return $this->_xpath->query($query, $context);
     }
 
 
@@ -82,7 +97,7 @@ class OpenDocument_Content extends DOMDocument
     {
         if (null === $this->_automaticStyles) {
             $this->registerNodeClass('DOMElement', 'OpenDocument_Styles_Element_AutomaticStyles');
-            $this->_automaticStyles = $this->_xpath->query('/office:automatic-styles', $this->documentElement)->item(0);
+            $this->_automaticStyles = $this->query('/office:automatic-styles', $this->documentElement)->item(0);
             if (null === $this->_automaticStyles) {
                 $this->_automaticStyles = $this->documentElement->appendChild(
                     $this->createElement('office:automatic-styles')
