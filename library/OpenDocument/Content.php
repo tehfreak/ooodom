@@ -14,6 +14,11 @@ class OpenDocument_Content extends DOMDocument
      */
     protected $_package = null;
 
+    /**
+     * @var RelaxNG_Schema
+     */
+    protected $_schema = null;
+
 
     /**
      * @var OpenDocument_Styles_Element_AutomaticStyles
@@ -69,8 +74,8 @@ class OpenDocument_Content extends DOMDocument
      */
     public function setPackage(OpenDocument_Package $package)
     {
-    	$this->_package = $package;
-    	return $this;
+        $this->_package = $package;
+        return $this;
     }
 
     /**
@@ -80,11 +85,27 @@ class OpenDocument_Content extends DOMDocument
      */
     public function getPackage()
     {
-    	if (null === $this->_package) {
-    		$this->_package = new OpenDocument_Package();
-    		$this->_package->setContent($this);
-    	}
-    	return $this->_package;
+        if (null === $this->_package) {
+            require_once 'OpenDocument/Package.php';
+            $this->_package = new OpenDocument_Package();
+            $this->_package->setContent($this);
+        }
+        return $this->_package;
+    }
+
+
+    /**
+     * Get schema
+     *
+     * @return RelaxNG_Schema
+     */
+    public function getSchema()
+    {
+        if (null === $this->_schema) {
+            require_once 'RelaxNG/Schema.php';
+            $this->_schema = new RelaxNG_Schema();
+        }
+        return $this->_schema;
     }
 
 
