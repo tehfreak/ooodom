@@ -46,6 +46,7 @@ class OpenDocument_Content extends DOMDocument
         );
         $root->setAttribute('office:version', '1.2');
         
+        require_once 'OpenDocument/Content/Element.php';
         $this->registerNodeClass('DOMElement', 'OpenDocument_Content_Element');
     }
 
@@ -57,7 +58,7 @@ class OpenDocument_Content extends DOMDocument
      * @param  DOMNode $context
      * @return DOMNodeList|null
      */
-    public function query($query, $context = null)
+    public function query($query, DOMNode $context = null)
     {
         if (null === $this->_xpath) {
             $this->_xpath = new DOMXPath($this);
@@ -117,8 +118,9 @@ class OpenDocument_Content extends DOMDocument
     public function getAutomaticStyles()
     {
         if (null === $this->_automaticStyles) {
+            require_once 'OpenDocument/Styles/Element/AutomaticStyles.php';
             $this->registerNodeClass('DOMElement', 'OpenDocument_Styles_Element_AutomaticStyles');
-            $this->_automaticStyles = $this->query('/office:automatic-styles', $this->documentElement)->item(0);
+            $this->_automaticStyles = $this->query('office:automatic-styles', $this->documentElement)->item(0);
             if (null === $this->_automaticStyles) {
                 $this->_automaticStyles = $this->documentElement->appendChild(
                     $this->createElement('office:automatic-styles')
