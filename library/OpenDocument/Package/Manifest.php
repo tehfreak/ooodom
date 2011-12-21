@@ -77,4 +77,15 @@ class OpenDocument_Package_Manifest extends DOMDocument
         $element->setAttribute('manifest:media-type', $mime);
         return $element;
     }
+
+    /**
+     * Check if exist <manifest:file-entry> for given path
+     *
+     * @param  string $path
+     * @return boolean
+     */
+    public function hasFile($path)
+    {
+        return (boolean) $this->query("manifest:file-entry[@manifest:full-path='$path']")->item(0);
+    }
 }

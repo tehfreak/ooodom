@@ -10,6 +10,12 @@
 class OpenDocument_Package
 {
     /**
+     * @var string
+     */
+    protected $_mimetype = null;
+
+
+    /**
      * @var OpenDocument_Manifest
      */
     protected $_manifest = null;
@@ -31,11 +37,6 @@ class OpenDocument_Package
 
 
     /**
-     * @var string
-     */
-    protected $_zipPath = null;
-
-    /**
      * @var ZipArchive
      */
     protected $_zip = null;
@@ -44,12 +45,27 @@ class OpenDocument_Package
     /**
      * Construct package
      *
-     * @param  string $path
+     * @param  string $mimetype
      * @param  array $config
      */
-    public function __construct($path = null, $config = null)
+    public function __construct($mimetype, array $config = null)
     {
-        $this->_zipPath = $path;
+        $this->_mimetype = $mimetype;
+        $this->setConfig($config);
+    }
+
+    /**
+     * Set config
+     *
+     * @param  mixed $config
+     * @return OpenDocument_Package
+     */
+    public function setConfig($config)
+    {
+        if (is_array($config)) {
+            
+        }
+        return $this;
     }
 
     /**
@@ -57,61 +73,7 @@ class OpenDocument_Package
      */
     public function __destruct()
     {
-        if ($this->_zip) {
-            $this->_zip->close();
-        }
-    }
-
-    /**
-     * Get opened zip archive
-     *
-     * @return ZipArchive
-     */
-    public function getZip()
-    {
-        if (null === $this->_zip) {
-            $zip = new ZipArchive();
-            if (null === $this->_zipPath) {
-                $this->_zipPath = tempnam(sys_get_temp_dir(), 'ODF');
-            }
-            if (!$result = $zip->open($this->_zipPath, ZIPARCHIVE::CREATE)) {
-                throw new Exception('Cannot open zip, error '. $result);
-            }
-            $this->_zip = $zip;
-        }
-        return $this->_zip;
-    }
-
-
-    /**
-     * Load state from zip archive
-     *
-     * @return OpenDocument_Package
-     */
-    public function load($path)
-    {
-        $this->_zip = null;
-        $this->_zipPath = $path;
-
-        $this->_manifest = null;
-        if ($manifest = $this->getZip()->getFromName('META-INF/manifest.xml')) {
-            $this->getManifest()->loadXML($manifest);
-        }
-
-        $this->_content = null;
-        if ($content = $this->getZip()->getFromName('content.xml')) {
-            $this->getContent()->loadXML($content);
-        }
-
-        $this->_styles = null;
-        if ($styles = $this->getZip()->getFromName('styles.xml')) {
-            $this->getStyles()->loadXML($styles);
-        }
-
-        $this->_meta = null;
-        if ($meta = $this->getZip()->getFromName('meta.xml')) {
-            $this->getMeta()->loadXML($meta);
-        }
+        $this->closeZip();
     }
 
 
@@ -224,40 +186,175 @@ class OpenDocument_Package
 
 
     /**
+     * @todo Check zip archive
+     *
+     * @param  string $path
+     * @return boolean
+     */
+    public function checkZip($path)
+    {
+        if (!realpath($path)) {
+            return false;
+        }
+        $zip = new ZipArchive();
+        if (true !== $zip->open($path, ZIPARCHIVE::CHECKCONS)) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Get opened zip archive
+     *
+     * @param  string $path
+     * @return ZipArchive
+     */
+    public function getZip($path = null)
+    {
+        if (null === $this->_zip) {
+            $zip = new ZipArchive();
+
+            $path = ($path) ? $path : tempnam(sys_get_temp_dir(), 'ODF');
+            if (!$result = $zip->open($path, ZIPARCHIVE::CREATE)) {
+                throw new Exception('Cannot open zip', $result);
+            }
+            $this->_zip = $zip;
+        }
+        return $this->_zip;
+    }
+
+    /**
+     * Close zip
+     *
+     * @return OpenDocument_Package
+     */
+    public function closeZip()
+    {
+        if ($this->_zip) {
+            if ($this->_zip->filename) {
+                $this->_zip->close();
+            }
+        }
+        $this->_zip = null;
+        return $this;
+    }
+
+
+    /**
      * Add a file to the package from path
      *
      * @param  string $realpath
      * @param  string $path
-     * @param  string $mime
+     * @param  string $mimetype
      * @return boolean
      */
-    public function addFile($realpath, $path = null, $mime = null)
+    public function addFile($realpath, $path = null, $mimetype = null)
     {
-        if (false === $realpath = realpath($realpath)) {
+        if (null === $realpath = realpath($realpath)) {
             throw new Exception('File not found');
-        }
-        if (false === $content = file_get_contents($realpath)) {
-            throw new Exception('File access denied');
         }
         if (null === $path) {
             $path = basename($realpath);
         }
-        return $this->addFileFromString($path, $content, $mime);
+        if ($result = $this->getZip()->addFile($realpath, $path)) {
+            if ($mimetype) {
+                $this->getManifest()->addFile($path, $mimetype);
+            }
+        }
+        return $result;
     }
 
     /**
      * Add a file to the package using its contents
      *
      * @param  string $path
-     * @param  string $content
-     * @param  string $mime
+     * @param  string $string
+     * @param  string $mimetype
      * @return boolean
      */
-    public function addFileFromString($path, $content, $mime = null)
+    public function addFileFromString($path, $string, $mimetype = null)
     {
-        if ($result = $this->getZip()->addFromString($path, $content)) {
-            $this->getManifest()->addFile($path, $mime);
+        if ($result = $this->getZip()->addFromString($path, $string)) {
+            if ($mimetype) {
+                $this->getManifest()->addFile($path, $mimetype);
+            }
         }
         return $result;
+    }
+
+    /**
+     * Retrieve content of registered file from the package
+     *
+     * @param  string $path
+     * @return string
+     */
+    public function getFile($path)
+    {
+        if ($this->getManifest()->hasFile($path)) {
+            return $this->getZip()->getFromName($path);
+        }
+    }
+
+
+    /**
+     * Load state from zip archive
+     *
+     * @param  string $path
+     * @return OpenDocument_Package
+     */
+    public function load($path)
+    {
+        $this->closeZip()->getZip($path);
+
+        $this->_manifest = null;
+        if ($manifest = $this->getFile('META-INF/manifest.xml')) {
+            $this->getManifest()->loadXML($manifest);
+        }
+
+        $this->_content = null;
+        if ($content = $this->getFile('content.xml')) {
+            $this->getContent()->loadXML($content);
+        }
+
+        $this->_styles = null;
+        if ($styles = $this->getFile('styles.xml')) {
+            $this->getStyles()->loadXML($styles);
+        }
+
+        $this->_meta = null;
+        if ($meta = $this->getFile('meta.xml')) {
+            $this->getMeta()->loadXML($meta);
+        }
+    }
+
+    /**
+     * Save state to zip archive
+     *
+     * @param  null|string $path
+     * @return OpenDocument_Package
+     */
+    public function save($path = null)
+    {
+        if ($path) {
+            $this->closeZip()->getZip($path);
+        }
+
+        $this->addFileFromString(
+            'mimetype', $this->_mimetype
+        );
+        $this->addFileFromString(
+            'META-INF/manifest.xml', $this->getManifest()->saveXML(), 'text/xml'
+        );
+        $this->addFileFromString(
+            'content.xml', $this->getContent()->saveXML(), 'text/xml'
+        );
+        $this->addFileFromString(
+            'styles.xml', $this->getStyles()->saveXML(), 'text/xml'
+        );
+
+        $path = $this->getZip()->filename;
+        $this->getZip()->close();
+
+        return $path;
     }
 }
