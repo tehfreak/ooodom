@@ -44,7 +44,7 @@ class OpenDocument_Styles_Element_Style extends DOMElement
      */
     public function setFamily($value)
     {
-        $this->setAttribute('style:name', $value);
+        $this->setAttribute('style:family', $value);
         // обходит контейнеры, невалидные удаляет
         foreach ($this->ownerDocument->query('*', $this) as $container) {
             if (!$container->isValid()) {
