@@ -283,10 +283,12 @@ class OpenDocument_Package
     }
 
     /**
-     * Retrieve content of registered file from the package
+     * Retrieve the file contents from the package using its path
+     *
+     * Returns NULL if the file is not declared in the manifest, or returns FALSE if the file not exists in package
      *
      * @param  string $path
-     * @return string
+     * @return string|null|false
      */
     public function getFile($path)
     {
@@ -304,25 +306,25 @@ class OpenDocument_Package
      */
     public function load($path)
     {
-        $this->closeZip()->getZip($path);
+        $zip = $this->closeZip()->getZip($path);
 
         $this->_manifest = null;
-        if ($manifest = $this->getFile('META-INF/manifest.xml')) {
+        if ($manifest = $zip->getFromName('META-INF/manifest.xml')) {
             $this->getManifest()->loadXML($manifest);
         }
 
         $this->_content = null;
-        if ($content = $this->getFile('content.xml')) {
+        if ($content = $zip->getFromName('content.xml')) {
             $this->getContent()->loadXML($content);
         }
 
         $this->_styles = null;
-        if ($styles = $this->getFile('styles.xml')) {
+        if ($styles = $zip->getFromName('styles.xml')) {
             $this->getStyles()->loadXML($styles);
         }
 
         $this->_meta = null;
-        if ($meta = $this->getFile('meta.xml')) {
+        if ($meta = $zip->getFromName('meta.xml')) {
             $this->getMeta()->loadXML($meta);
         }
     }
@@ -351,6 +353,11 @@ class OpenDocument_Package
         $this->addFileFromString(
             'styles.xml', $this->getStyles()->saveXML(), 'text/xml'
         );
+        if ($this->_meta) {
+            $this->addFileFromString(
+                'meta.xml', $this->getMeta()->saveXML(), 'text/xml'
+            );
+        }
 
         $path = $this->getZip()->filename;
         $this->getZip()->close();
