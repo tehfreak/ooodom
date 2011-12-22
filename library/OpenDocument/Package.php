@@ -73,7 +73,7 @@ class OpenDocument_Package
      */
     public function __destruct()
     {
-        $this->closeZip();
+        $this->_closeZip();
     }
 
 
@@ -189,18 +189,17 @@ class OpenDocument_Package
      * @todo Check zip archive
      *
      * @param  string $path
-     * @return boolean
+     * @return ZipArchive|false
      */
-    public function checkZip($path)
+    protected function _checkZip($path)
     {
-        if (!realpath($path)) {
-            return false;
-        }
         $zip = new ZipArchive();
-        if (true !== $zip->open($path, ZIPARCHIVE::CHECKCONS)) {
-            return false;
+        if (realpath($path)) {
+            if (true !== $zip->open($path, ZIPARCHIVE::CHECKCONS)) {
+                return false;
+            }
         }
-        return true;
+        return $zip;
     }
 
     /**
@@ -208,16 +207,25 @@ class OpenDocument_Package
      *
      * @param  string $path
      * @return ZipArchive
+     *
+     * @throws OpenDocument_Package_Exception_Zip
      */
-    public function getZip($path = null)
+    protected function _getZip($path = null)
     {
         if (null === $this->_zip) {
-            $zip = new ZipArchive();
 
-            $path = ($path) ? $path : tempnam(sys_get_temp_dir(), 'ODF');
+            if (null === $path) {
+                $path = tempnam(sys_get_temp_dir(), 'ODF');
+            }
+
+            if (false === $zip = $this->_checkZip($path)) {
+                throw new Exception('Invalid zip');
+            }
+
             if (!$result = $zip->open($path, ZIPARCHIVE::CREATE)) {
                 throw new Exception('Cannot open zip', $result);
             }
+
             $this->_zip = $zip;
         }
         return $this->_zip;
@@ -228,7 +236,7 @@ class OpenDocument_Package
      *
      * @return OpenDocument_Package
      */
-    public function closeZip()
+    protected function _closeZip()
     {
         if ($this->_zip) {
             if ($this->_zip->filename) {
@@ -256,7 +264,7 @@ class OpenDocument_Package
         if (null === $path) {
             $path = basename($realpath);
         }
-        if ($result = $this->getZip()->addFile($realpath, $path)) {
+        if ($result = $this->_getZip()->addFile($realpath, $path)) {
             if ($mimetype) {
                 $this->getManifest()->addFile($path, $mimetype);
             }
@@ -274,7 +282,7 @@ class OpenDocument_Package
      */
     public function addFileFromString($path, $string, $mimetype = null)
     {
-        if ($result = $this->getZip()->addFromString($path, $string)) {
+        if ($result = $this->_getZip()->addFromString($path, $string)) {
             if ($mimetype) {
                 $this->getManifest()->addFile($path, $mimetype);
             }
@@ -293,7 +301,7 @@ class OpenDocument_Package
     public function getFile($path)
     {
         if ($this->getManifest()->hasFile($path)) {
-            return $this->getZip()->getFromName($path);
+            return $this->_getZip()->getFromName($path);
         }
     }
 
@@ -306,7 +314,7 @@ class OpenDocument_Package
      */
     public function load($path)
     {
-        $zip = $this->closeZip()->getZip($path);
+        $zip = $this->_closeZip()->_getZip($path);
 
         $this->_manifest = null;
         if ($manifest = $zip->getFromName('META-INF/manifest.xml')) {
@@ -327,6 +335,8 @@ class OpenDocument_Package
         if ($meta = $zip->getFromName('meta.xml')) {
             $this->getMeta()->loadXML($meta);
         }
+
+        return $this;
     }
 
     /**
@@ -338,7 +348,7 @@ class OpenDocument_Package
     public function save($path = null)
     {
         if ($path) {
-            $this->closeZip()->getZip($path);
+            $this->_closeZip()->_getZip($path);
         }
 
         $this->addFileFromString(
@@ -359,9 +369,9 @@ class OpenDocument_Package
             );
         }
 
-        $path = $this->getZip()->filename;
-        $this->getZip()->close();
+        $path = $this->_getZip()->filename;
+        $this->_getZip()->close();
 
-        return $path;
+        return $this;
     }
 }
